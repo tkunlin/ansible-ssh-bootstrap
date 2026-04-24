@@ -1,0 +1,60 @@
+- name: Preload SSH host keys into local known_hosts (IPv4 only)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: false
+
+  vars:
+    known_hosts_file: "{{ lookup('env','HOME') + '/.ssh/known_hosts' }}"
+
+  tasks:
+    - name: Ensure ~/.ssh exists (local)
+      file:
+        path: "{{ lookup('env','HOME') + '/.ssh' }}"
+        state: directory
+        mode: "0700"
+
+    - name: Remove old known_hosts entries for this inventory (IP + hostname)
+      command: "ssh-keygen -R {{ item }}"
+      loop: "{{ groups['cluster_nodes'] + (groups['cluster_nodes'] | map('extract', hostvars, 'ansible_host') | list) }}"
+      changed_when: false
+      failed_when: false
+
+    - name: Scan host keys via IP (ed25519,ecdsa,rsa)
+      shell: "ssh-keyscan -4 -T 5 -t ed25519,ecdsa,rsa {{ hostvars[item].ansible_host }} 2>/dev/null || true"
+      args:
+        executable: /bin/bash
+      register: scan
+      changed_when: false
+      loop: "{{ groups['cluster_nodes'] }}"
+      loop_control:
+        label: "{{ item }} -> {{ hostvars[item].ansible_host }}"
+
+    - name: Fail if ssh-keyscan got no key
+      fail:
+        msg: "ssh-keyscan 取不到 {{ item.item }} ({{ hostvars[item.item].ansible_host }}) 的 host key；請確認該 IP 的 22 port/sshd/網路可達。"
+      loop: "{{ scan.results }}"
+      when: (item.stdout_lines | length) == 0
+
+    - name: Add keys by IP into known_hosts
+      known_hosts:
+        path: "{{ known_hosts_file }}"
+        name: "{{ hostvars[item.0.item].ansible_host }}"
+        key: "{{ item.1 }}"
+        state: present
+      with_subelements:
+        - "{{ scan.results }}"
+        - stdout_lines
+
+    - name: Add keys by hostname into known_hosts (rewrite IP -> hostname)
+      vars:
+        ip: "{{ hostvars[item.0.item].ansible_host }}"
+        hn: "{{ item.0.item }}"
+      known_hosts:
+        path: "{{ known_hosts_file }}"
+        name: "{{ hn }}"
+        key: "{{ item.1 | regex_replace('^' ~ ip ~ '(\\s+)', hn ~ '\\1') }}"
+        state: present
+      with_subelements:
+        - "{{ scan.results }}"
+        - stdout_lines

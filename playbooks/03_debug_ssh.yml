@@ -1,0 +1,81 @@
+- name: Debug SSH keyless related settings
+  hosts: cluster_nodes
+  become: true
+  gather_facts: false
+
+  vars:
+    effective_deploy_user: "{{ deploy_user | default(ansible_user | default('mitac')) }}"
+
+  pre_tasks:
+    - name: Ensure python3 exists (best effort for Debian/Ubuntu)
+      raw: |
+        if ! command -v python3 >/dev/null 2>&1; then
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update -y
+          apt-get install -y python3
+        fi
+      changed_when: false
+      failed_when: false
+
+  tasks:
+    - name: Show effective deploy user
+      debug:
+        msg: "effective_deploy_user={{ effective_deploy_user }}"
+
+    - name: Get passwd entry for deploy user
+      command: "getent passwd {{ effective_deploy_user }}"
+      register: passwd_out
+      changed_when: false
+      failed_when: false
+
+    - name: Stat home dir
+      stat:
+        path: "/home/{{ effective_deploy_user }}"
+      register: home_stat
+
+    - name: Stat .ssh dir
+      stat:
+        path: "/home/{{ effective_deploy_user }}/.ssh"
+      register: ssh_dir_stat
+
+    - name: Stat authorized_keys
+      stat:
+        path: "/home/{{ effective_deploy_user }}/.ssh/authorized_keys"
+      register: authkeys_stat
+
+    - name: Show passwd entry
+      debug:
+        var: passwd_out.stdout
+
+    - name: Show home stat
+      debug:
+        var: home_stat.stat
+
+    - name: Show .ssh stat
+      debug:
+        var: ssh_dir_stat.stat
+
+    - name: Show authorized_keys stat
+      debug:
+        var: authkeys_stat.stat
+
+    - name: Show effective sshd settings
+      shell: "sshd -T | egrep 'pubkeyauthentication|passwordauthentication|kbdinteractiveauthentication|authorizedkeysfile|strictmodes'"
+      register: sshd_t
+      changed_when: false
+      failed_when: false
+
+    - name: Print sshd effective settings
+      debug:
+        var: sshd_t.stdout_lines
+
+    - name: Show last ssh logs
+      shell: "journalctl -u ssh -n 50 --no-pager"
+      register: ssh_logs
+      changed_when: false
+      failed_when: false
+
+    - name: Print last ssh logs
+      debug:
+        var: ssh_logs.stdout_lines
+

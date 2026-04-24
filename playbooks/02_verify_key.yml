@@ -1,0 +1,16 @@
+- name: Verify key-based access works for deploy user
+  hosts: cluster_nodes
+  gather_facts: false
+
+  tasks:
+    - name: Ping
+      ping:
+
+    - name: Show remote login user
+      command: whoami
+      register: whoami_out
+      changed_when: false
+
+    - name: Print remote login user
+      debug:
+        msg: "{{ inventory_hostname }} login user = {{ whoami_out.stdout }}"

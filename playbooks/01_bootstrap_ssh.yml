@@ -1,0 +1,87 @@
+- name: Bootstrap SSH key-based access for deploy user
+  hosts: cluster_nodes
+  become: true
+  gather_facts: false
+
+  vars:
+    effective_deploy_user: "{{ deploy_user | default(ansible_user | default('mitac')) }}"
+
+  pre_tasks:
+    - name: Ensure python3 exists (best effort for Debian/Ubuntu)
+      raw: |
+        if ! command -v python3 >/dev/null 2>&1; then
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update -y
+          apt-get install -y python3
+        fi
+      changed_when: false
+      failed_when: false
+
+  tasks:
+    - name: Ensure deploy user exists
+      user:
+        name: "{{ effective_deploy_user }}"
+        shell: /bin/bash
+        create_home: true
+
+    - name: Ensure deploy user home exists with sane ownership
+      file:
+        path: "/home/{{ effective_deploy_user }}"
+        state: directory
+        owner: "{{ effective_deploy_user }}"
+        group: "{{ effective_deploy_user }}"
+        mode: "0755"
+
+    - name: Ensure ~/.ssh exists for deploy user
+      file:
+        path: "/home/{{ effective_deploy_user }}/.ssh"
+        state: directory
+        owner: "{{ effective_deploy_user }}"
+        group: "{{ effective_deploy_user }}"
+        mode: "0700"
+
+    - name: Install authorized key for deploy user
+      authorized_key:
+        user: "{{ effective_deploy_user }}"
+        key: "{{ lookup('file', controller_pubkey_path) }}"
+        state: present
+        manage_dir: true
+
+    - name: Ensure authorized_keys ownership and permissions
+      file:
+        path: "/home/{{ effective_deploy_user }}/.ssh/authorized_keys"
+        state: file
+        owner: "{{ effective_deploy_user }}"
+        group: "{{ effective_deploy_user }}"
+        mode: "0600"
+
+    - name: Configure sudoers for deploy user (optional NOPASSWD)
+      when: sudo_nopasswd | bool
+      copy:
+        dest: "/etc/sudoers.d/{{ effective_deploy_user }}"
+        content: |
+          {{ effective_deploy_user }} ALL=(ALL) NOPASSWD:ALL
+        owner: root
+        group: root
+        mode: "0440"
+        validate: "visudo -cf %s"
+
+    - name: Configure SSH hardening drop-in (optional)
+      when: disable_password_auth | bool
+      copy:
+        dest: /etc/ssh/sshd_config.d/99-ansible-keyless.conf
+        content: |
+          PasswordAuthentication no
+          KbdInteractiveAuthentication no
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Restart ssh
+
+  handlers:
+    - name: Restart ssh
+      service:
+        name: ssh
+        state: restarted
+      failed_when: false
+
