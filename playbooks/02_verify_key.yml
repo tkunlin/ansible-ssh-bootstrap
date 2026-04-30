@@ -1,16 +1,18 @@
 - name: Verify key-based access works for deploy user
   hosts: cluster_nodes
   gather_facts: false
+  vars:
+    ansible_become: false
 
   tasks:
-    - name: Ping
-      ping:
+    - name: Ping without become
+      ansible.builtin.ping:
 
-    - name: Show remote login user
-      command: whoami
+    - name: Show remote login user without become
+      ansible.builtin.command: whoami
       register: whoami_out
       changed_when: false
 
     - name: Print remote login user
-      debug:
+      ansible.builtin.debug:
         msg: "{{ inventory_hostname }} login user = {{ whoami_out.stdout }}"
