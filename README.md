@@ -1,4 +1,14 @@
-Usage
+## Prerequisite
+Install ansible (Ubuntu)
+```
+sudo apt update && sudo apt install ansible
+```
+Generate ssh key
+```
+ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -N ""
+```
+
+## Usage
 
 Added host information to /etc/hosts
 
