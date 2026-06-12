@@ -3,6 +3,11 @@ Install ansible (Ubuntu)
 ```
 sudo apt update && sudo apt install ansible
 ```
+Install sshpass (Ubuntu)
+```
+sudo apt update && sudo apt install -y sshpass
+```
+
 Generate ssh key
 ```
 ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -N ""
