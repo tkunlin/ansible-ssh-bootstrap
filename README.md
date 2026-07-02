@@ -1,11 +1,11 @@
 ## Prerequisite
 Install ansible (Ubuntu)
 ```
-sudo apt update && sudo apt install ansible
+sudo apt update && sudo apt install ansible -y 
 ```
 Install sshpass (Ubuntu)
 ```
-sudo apt update && sudo apt install -y sshpass
+sudo apt update && sudo apt install sshpass -y 
 ```
 
 Generate ssh key
